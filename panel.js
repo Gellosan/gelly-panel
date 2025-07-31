@@ -95,3 +95,11 @@ function showMessage(msg) {
   msgBox.innerText = msg;
   setTimeout(() => { msgBox.innerText = ''; }, 3000);
 }
+window.Twitch.ext.onAuthorized(function(auth) {
+  // existing code...
+  
+  document.getElementById('feedBtn')?.addEventListener('click', () => interact('feed'));
+  document.getElementById('playBtn')?.addEventListener('click', () => interact('play'));
+  document.getElementById('cleanBtn')?.addEventListener('click', () => interact('clean'));
+  document.getElementById('helpBtn')?.addEventListener('click', showHelp);
+});
