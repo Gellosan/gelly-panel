@@ -1,26 +1,39 @@
 let twitchUserId = null;
 let selectedColor = 'blue';
-let blobColor = null;
 
-window.Twitch.ext.onAuthorized(function(auth) {
+window.Twitch.ext.onAuthorized((auth) => {
   twitchUserId = auth.userId;
   connectWebSocket();
+  
+  // Button events
+  document.getElementById('feedBtn')?.addEventListener('click', () => interact('feed'));
+  document.getElementById('playBtn')?.addEventListener('click', () => interact('play'));
+  document.getElementById('cleanBtn')?.addEventListener('click', () => interact('clean'));
+  document.getElementById('helpBtn')?.addEventListener('click', showHelp);
 });
 
 function connectWebSocket() {
-  const socket = new WebSocket('wss://gelly-server.onrender.com/?user=' + twitchUserId);
+  if (!twitchUserId) return;
+  const socket = new WebSocket(`wss://gelly-server.onrender.com/?user=${twitchUserId}`);
+  
+  socket.addEventListener('open', () => console.log('WebSocket connected'));
+  socket.addEventListener('error', () => console.error('WebSocket error'));
+  
   socket.addEventListener('message', (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'update') updateUI(msg.state);
-    else if (msg.type === 'leaderboard') {
-      const list = document.getElementById('leaderboard-list');
-      list.innerHTML = '';
-      msg.entries.forEach(entry => {
-        const li = document.createElement('li');
-        li.innerText = `${entry.user}: ${entry.mood} mood`;
-        list.appendChild(li);
-      });
-    }
+    else if (msg.type === 'leaderboard') updateLeaderboard(msg.entries);
+  });
+}
+
+function updateLeaderboard(entries) {
+  const list = document.getElementById('leaderboard-list');
+  if (!list) return;
+  list.innerHTML = '';
+  entries.forEach(entry => {
+    const li = document.createElement('li');
+    li.innerText = `${entry.user}: ${entry.mood} mood`;
+    list.appendChild(li);
   });
 }
 
@@ -30,8 +43,8 @@ function updateUI(state) {
   document.getElementById('cleanliness').innerText = state.cleanliness;
 
   const gellyImage = document.getElementById('gelly-image');
-  const stage = state.stage || 'egg';     // egg, blob, gelly
-  const color = state.color || 'blue';    // fallback
+  const stage = state.stage || 'egg';
+  const color = state.color || 'blue';
 
   if (stage === 'egg') {
     gellyImage.src = 'assets/egg.png';
@@ -42,7 +55,6 @@ function updateUI(state) {
   }
 }
 
-
 function showMessage(msg) {
   const el = document.getElementById('message');
   el.innerText = msg;
@@ -51,12 +63,13 @@ function showMessage(msg) {
 
 function showHelp() {
   const box = document.getElementById('help-box');
-  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
 }
 
 function interact(action) {
   if (!twitchUserId) return showMessage("User not authenticated.");
-  fetch('https://gelly-server.onrender.com/interact', {
+  
+  fetch('https://gelly-server.onrender.com/v1/interact', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, user: twitchUserId })
@@ -64,42 +77,9 @@ function interact(action) {
   .then(res => res.json())
   .then(data => {
     if (!data.success) showMessage(data.message);
+  })
+  .catch(err => {
+    console.error(err);
+    showMessage('Network error');
   });
 }
-
-function changeColor(color) {
-  selectedColor = color;
-  interact('color:' + color);
-}
-function interact(action) {
-  fetch('https://gelly-server.onrender.com/v1/interact', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ user: twitchUserId, action })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (!data.success) showMessage(data.message);
-  })
-  .catch(() => showMessage('Network error'));
-}
-function showHelp() {
-  const helpBox = document.getElementById('help-box');
-  helpBox.style.display = helpBox.style.display === 'none' ? 'block' : 'none';
-}
-
-function showMessage(msg) {
-  const msgBox = document.getElementById('message');
-  msgBox.innerText = msg;
-  setTimeout(() => { msgBox.innerText = ''; }, 3000);
-}
-window.Twitch.ext.onAuthorized(function(auth) {
-  // existing code...
-  
-  document.getElementById('feedBtn')?.addEventListener('click', () => interact('feed'));
-  document.getElementById('playBtn')?.addEventListener('click', () => interact('play'));
-  document.getElementById('cleanBtn')?.addEventListener('click', () => interact('clean'));
-  document.getElementById('helpBtn')?.addEventListener('click', showHelp);
-});
