@@ -4,7 +4,7 @@ let selectedColor = 'blue';
 window.Twitch.ext.onAuthorized((auth) => {
   twitchUserId = auth.userId;
   connectWebSocket();
-  
+
   // Button events
   document.getElementById('feedBtn')?.addEventListener('click', () => interact('feed'));
   document.getElementById('playBtn')?.addEventListener('click', () => interact('play'));
@@ -15,10 +15,10 @@ window.Twitch.ext.onAuthorized((auth) => {
 function connectWebSocket() {
   if (!twitchUserId) return;
   const socket = new WebSocket(`wss://gelly-server.onrender.com/?user=${twitchUserId}`);
-  
+
   socket.addEventListener('open', () => console.log('WebSocket connected'));
   socket.addEventListener('error', () => console.error('WebSocket error'));
-  
+
   socket.addEventListener('message', (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'update') updateUI(msg.state);
@@ -29,10 +29,27 @@ function connectWebSocket() {
 function updateLeaderboard(entries) {
   const list = document.getElementById('leaderboard-list');
   if (!list) return;
+
+  // Sort by mood, then energy, then cleanliness
+  const sorted = [...entries].sort((a, b) => {
+    if (b.mood !== a.mood) return b.mood - a.mood;
+    if (b.energy !== a.energy) return b.energy - a.energy;
+    return b.cleanliness - a.cleanliness;
+  });
+
+  // Take top 10
+  const topTen = sorted.slice(0, 10);
+
+  // Clear old leaderboard
   list.innerHTML = '';
-  entries.forEach(entry => {
+
+  // Display entries with rank numbers
+  topTen.forEach((entry, index) => {
     const li = document.createElement('li');
-    li.innerText = `${entry.user}: ${entry.mood} mood`;
+    li.innerHTML = `
+      <strong>#${index + 1}</strong> ${entry.user}
+      <span> - Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}</span>
+    `;
     list.appendChild(li);
   });
 }
@@ -68,7 +85,7 @@ function showHelp() {
 
 function interact(action) {
   if (!twitchUserId) return showMessage("User not authenticated.");
-  
+
   fetch('https://gelly-server.onrender.com/v1/interact', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
