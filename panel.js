@@ -29,19 +29,19 @@ function updateUI(state) {
   document.getElementById('mood').innerText = state.mood;
   document.getElementById('cleanliness').innerText = state.cleanliness;
 
-  const img = document.getElementById('gelly-image');
+  const gellyImage = document.getElementById('gelly-image');
+  const stage = state.stage || 'egg';     // egg, blob, gelly
+  const color = state.color || 'blue';    // fallback
 
-  if (state.stage === 'egg') {
-    img.src = `egg.png`;
-    blobColor = null;
-  } else if (state.stage === 'blob') {
-    img.src = `blob-${selectedColor}.png`;
-    blobColor = selectedColor;
-  } else {
-    const finalColor = blobColor || selectedColor;
-    img.src = `gelly-${finalColor}.png`;
+  if (stage === 'egg') {
+    gellyImage.src = 'assets/egg.png';
+  } else if (stage === 'blob') {
+    gellyImage.src = `assets/blob-${color}.png`;
+  } else if (stage === 'gelly') {
+    gellyImage.src = `assets/gelly-${color}.png`;
   }
 }
+
 
 function showMessage(msg) {
   const el = document.getElementById('message');
@@ -70,4 +70,28 @@ function interact(action) {
 function changeColor(color) {
   selectedColor = color;
   interact('color:' + color);
+}
+function interact(action) {
+  fetch('https://gelly-server.onrender.com/v1/interact', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ user: twitchUserId, action })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (!data.success) showMessage(data.message);
+  })
+  .catch(() => showMessage('Network error'));
+}
+function showHelp() {
+  const helpBox = document.getElementById('help-box');
+  helpBox.style.display = helpBox.style.display === 'none' ? 'block' : 'none';
+}
+
+function showMessage(msg) {
+  const msgBox = document.getElementById('message');
+  msgBox.innerText = msg;
+  setTimeout(() => { msgBox.innerText = ''; }, 3000);
 }

@@ -1,1 +1,59 @@
-// placeholder content for panel.html
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Gelly Extension</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <div id="gelly-container">
+    <div id="background">
+      <img id="gelly-image" src="assets/egg.png" alt="gelly">
+    </div>
+
+    <div id="stats">
+      <p>Energy: <span id="energy">100</span></p>
+      <p>Mood: <span id="mood">50</span></p>
+      <p>Cleanliness: <span id="cleanliness">50</span></p>
+    </div>
+
+    <div id="actions">
+      <button onclick="interact('feed')">Feed (Cost: 1000 points)</button>
+      <button onclick="interact('play')">Play</button>
+      <button onclick="interact('clean')">Clean</button>
+      <button onclick="showHelp()">Help</button>
+    </div>
+
+    <div id="message"></div>
+
+    <div id="help-box" style="display: none;">
+      <h3>How to Play Gellys</h3>
+      <ul>
+        <li>Feed to increase energy (3x per hour, 1000 points)</li>
+        <li>Play to increase mood</li>
+        <li>Clean to increase cleanliness</li>
+        <li>Raise your Gelly through stages: Egg → Blob → Gelly</li>
+        <li>Compete on the mood leaderboard!</li>
+        <li>Visit at least once every 24 hours or your Gelly will get sad and messy!</li>
+      </ul>
+    </div>
+
+    <div id="leaderboard">
+      <h3>Top Gelly Keepers</h3>
+      <ul id="leaderboard-list"></ul>
+    </div>
+
+    <div id="color-picker">
+      <label for="gellyColor">Choose Gelly Color:</label>
+      <select id="gellyColor" onchange="changeColor(this.value)">
+        <option value="blue" selected>Blue</option>
+        <option value="green">Green</option>
+        <option value="pink">Pink</option>
+      </select>
+    </div>
+  </div>
+
+  <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>
