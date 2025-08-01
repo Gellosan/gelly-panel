@@ -7,16 +7,16 @@ window.Twitch.ext.onAuthorized(function (auth) {
   }
 
   const SERVER_URL = "https://gelly-panel-kkp9.onrender.com";
+  const WS_URL = `${SERVER_URL.replace(/^http/, "ws")}/?user=${twitchUserId}`;
 
   function connectWebSocket() {
     if (!twitchUserId) {
       console.warn("[DEBUG] No Twitch user ID, skipping WebSocket connection.");
       return;
     }
-    const wsUrl = `${SERVER_URL.replace(/^http/, "ws")}/?user=${twitchUserId}`;
-    console.log("[DEBUG] Connecting WebSocket:", wsUrl);
 
-    const socket = new WebSocket(wsUrl);
+    console.log("[DEBUG] Connecting WebSocket:", WS_URL);
+    const socket = new WebSocket(WS_URL);
 
     socket.addEventListener("open", () => console.log("[DEBUG] WebSocket connected"));
     socket.addEventListener("error", (err) => console.error("[DEBUG] WebSocket error", err));
@@ -68,15 +68,10 @@ window.Twitch.ext.onAuthorized(function (auth) {
       return b.cleanliness - a.cleanliness;
     });
 
-    const topTen = sorted.slice(0, 10);
     list.innerHTML = "";
-
-    topTen.forEach((entry, index) => {
+    sorted.slice(0, 10).forEach((entry, index) => {
       const li = document.createElement("li");
-      li.innerHTML = `
-        <strong>#${index + 1}</strong> ${entry.user}
-        <span> - Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}</span>
-      `;
+      li.innerHTML = `<strong>#${index + 1}</strong> ${entry.user} - Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}`;
       list.appendChild(li);
     });
   }
@@ -103,6 +98,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
   function showMessage(msg) {
     console.log("[DEBUG] showMessage:", msg);
     const el = document.getElementById("message");
+    if (!el) return;
     el.innerText = msg;
     setTimeout(() => (el.innerText = ""), 3000);
   }
