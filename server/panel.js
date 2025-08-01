@@ -7,7 +7,6 @@ window.Twitch.ext.onAuthorized(function (auth) {
   }
 
   const SERVER_URL = "https://gelly-panel-kkp9.onrender.com";
-  const WS_URL = `${SERVER_URL.replace(/^http/, "ws")}/?user=${twitchUserId}`;
 
   function connectWebSocket() {
     if (!twitchUserId) {
@@ -15,17 +14,23 @@ window.Twitch.ext.onAuthorized(function (auth) {
       return;
     }
 
-    console.log("[DEBUG] Connecting WebSocket:", WS_URL);
-    const socket = new WebSocket(WS_URL);
+    const wsUrl = `${SERVER_URL.replace(/^http/, "ws")}/?user=${encodeURIComponent(twitchUserId)}`;
+    console.log("[DEBUG] Connecting WebSocket:", wsUrl);
+
+    const socket = new WebSocket(wsUrl);
 
     socket.addEventListener("open", () => console.log("[DEBUG] WebSocket connected"));
     socket.addEventListener("error", (err) => console.error("[DEBUG] WebSocket error", err));
 
     socket.addEventListener("message", (event) => {
       console.log("[DEBUG] WebSocket message received:", event.data);
-      const msg = JSON.parse(event.data);
-      if (msg.type === "update") updateUI(msg.state);
-      else if (msg.type === "leaderboard") updateLeaderboard(msg.entries);
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "update") updateUI(msg.state);
+        else if (msg.type === "leaderboard") updateLeaderboard(msg.entries);
+      } catch (e) {
+        console.error("[DEBUG] Failed to parse WebSocket message:", e);
+      }
     });
   }
 
@@ -70,28 +75,34 @@ window.Twitch.ext.onAuthorized(function (auth) {
 
     list.innerHTML = "";
     sorted.slice(0, 10).forEach((entry, index) => {
+      const name = entry.displayName || entry.userId || "Unknown";
       const li = document.createElement("li");
-      li.innerHTML = `<strong>#${index + 1}</strong> ${entry.user} - Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}`;
+      li.innerHTML = `<strong>#${index + 1}</strong> ${name} - Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}`;
       list.appendChild(li);
     });
   }
 
   function updateUI(state) {
     console.log("[DEBUG] Updating UI with state:", state);
-    document.getElementById("energy").innerText = state.energy;
-    document.getElementById("mood").innerText = state.mood;
-    document.getElementById("cleanliness").innerText = state.cleanliness;
+
+    const energyEl = document.getElementById("energy");
+    const moodEl = document.getElementById("mood");
+    const cleanEl = document.getElementById("cleanliness");
+    if (energyEl) energyEl.innerText = state.energy;
+    if (moodEl) moodEl.innerText = state.mood;
+    if (cleanEl) cleanEl.innerText = state.cleanliness;
 
     const gellyImage = document.getElementById("gelly-image");
-    const stage = state.stage || "egg";
-    const color = state.color || "blue";
-
-    if (stage === "egg") {
-      gellyImage.src = "assets/egg.png";
-    } else if (stage === "blob") {
-      gellyImage.src = `assets/blob-${color}.png`;
-    } else if (stage === "gelly") {
-      gellyImage.src = `assets/gelly-${color}.png`;
+    if (gellyImage) {
+      const stage = state.stage || "egg";
+      const color = state.color || "blue";
+      if (stage === "egg") {
+        gellyImage.src = "assets/egg.png";
+      } else if (stage === "blob") {
+        gellyImage.src = `assets/blob-${color}.png`;
+      } else if (stage === "gelly") {
+        gellyImage.src = `assets/gelly-${color}.png`;
+      }
     }
   }
 
@@ -100,7 +111,9 @@ window.Twitch.ext.onAuthorized(function (auth) {
     const el = document.getElementById("message");
     if (!el) return;
     el.innerText = msg;
-    setTimeout(() => (el.innerText = ""), 3000);
+    setTimeout(() => {
+      if (el) el.innerText = "";
+    }, 3000);
   }
 
   function showHelp() {
@@ -117,3 +130,4 @@ window.Twitch.ext.onAuthorized(function (auth) {
 
   connectWebSocket();
 });
+
