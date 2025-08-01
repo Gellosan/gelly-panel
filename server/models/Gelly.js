@@ -1,4 +1,3 @@
-// server/models/Gelly.js
 const mongoose = require('mongoose');
 
 const GellySchema = new mongoose.Schema({
