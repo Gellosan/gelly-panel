@@ -55,12 +55,39 @@ window.Twitch.ext.onAuthorized(function (auth) {
           showMessage(data.message || "Action failed");
         } else {
           console.log("[DEBUG] Action succeeded:", action);
+          triggerFeedback(action); // Show visual/audio feedback
         }
       })
       .catch((err) => {
         console.error("[DEBUG] Network error during interact:", err);
         showMessage("Network error");
       });
+  }
+
+  function triggerFeedback(action) {
+    const gellyImage = document.getElementById("gelly-image");
+
+    if (!gellyImage) return;
+
+    // Add animation class
+    gellyImage.classList.add("action-feedback");
+
+    // Play sound based on action
+    let soundSrc = "";
+    if (action === "feed") soundSrc = "assets/sounds/feed.mp3";
+    if (action === "play") soundSrc = "assets/sounds/play.mp3";
+    if (action === "clean") soundSrc = "assets/sounds/clean.mp3";
+
+    if (soundSrc) {
+      const sound = new Audio(soundSrc);
+      sound.volume = 0.5;
+      sound.play().catch(() => {}); // Avoid autoplay restrictions
+    }
+
+    // Remove animation after 500ms
+    setTimeout(() => {
+      gellyImage.classList.remove("action-feedback");
+    }, 500);
   }
 
   function updateLeaderboard(entries) {
