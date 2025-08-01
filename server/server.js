@@ -6,16 +6,31 @@ const Gelly = require('./models/Gelly');
 const app = express();
 app.use(express.json());
 
-// Allow Twitch extension panel + your Render frontend
+// ✅ Allow Twitch extension iframe + localhost + your Render panel
 app.use(cors({
-  origin: [
-    /\.ext-twitch\.tv$/,                       // Twitch extension iframe
-    'https://gelly-panel-kkp9.onrender.com',   // Your panel hosting on Render
-    'https://localhost:8080',
-    'http://localhost:8080'
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    // Allow Twitch extension iframe domains
+    if (/\.ext-twitch\.tv$/.test(origin)) return callback(null, true);
+
+    // Allow your panel hosting + localhost
+    const allowedOrigins = [
+      'https://gelly-panel-kkp9.onrender.com',
+      'https://gelly-server.onrender.com',
+      'http://localhost:8080',
+      'https://localhost:8080'
+    ];
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    return callback(new Error('CORS not allowed for this origin'));
+  },
   credentials: true
 }));
+
+// ✅ Handle Twitch's preflight OPTIONS requests
+app.options('*', cors());
 
 // MongoDB connection
 mongoose.connect(
@@ -42,7 +57,6 @@ app.post('/v1/interact', async (req, res) => {
       gelly = new Gelly({ userId: user });
     }
 
-    // Apply action
     switch (action) {
       case 'feed':
         gelly.energy = Math.min(100, gelly.energy + 10);
@@ -82,3 +96,9 @@ app.get('/v1/leaderboard', async (req, res) => {
     res.json({ success: true, leaderboard });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
