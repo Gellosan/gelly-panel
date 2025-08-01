@@ -7,13 +7,14 @@ window.Twitch.ext.onAuthorized(function (auth) {
   }
 
   const SERVER_URL = "https://gelly-panel-kkp9.onrender.com";
+  const WS_URL = "wss://gelly-panel-kkp9.onrender.com";
 
   function connectWebSocket() {
     if (!twitchUserId) {
       console.warn("[DEBUG] No Twitch user ID, skipping WebSocket connection.");
       return;
     }
-    const wsUrl = `${SERVER_URL.replace(/^http/, "ws")}/?user=${twitchUserId}`;
+    const wsUrl = `${WS_URL}/?user=${encodeURIComponent(twitchUserId)}`;
     console.log("[DEBUG] Connecting WebSocket:", wsUrl);
 
     const socket = new WebSocket(wsUrl);
@@ -53,7 +54,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
         }
       })
       .catch((err) => {
-        console.error("[DEBUG] Network error during interact:", err);
+        console.error("[DEBUG] Network error:", err);
         showMessage("Network error");
       });
   }
@@ -61,22 +62,12 @@ window.Twitch.ext.onAuthorized(function (auth) {
   function updateLeaderboard(entries) {
     const list = document.getElementById("leaderboard-list");
     if (!list) return;
-
-    const sorted = [...entries].sort((a, b) => {
-      if (b.mood !== a.mood) return b.mood - a.mood;
-      if (b.energy !== a.energy) return b.energy - a.energy;
-      return b.cleanliness - a.cleanliness;
-    });
-
-    const topTen = sorted.slice(0, 10);
     list.innerHTML = "";
 
-    topTen.forEach((entry, index) => {
+    entries.forEach((entry, index) => {
       const li = document.createElement("li");
-      li.innerHTML = `
-        <strong>#${index + 1}</strong> ${entry.user}
-        <span> - Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}</span>
-      `;
+      li.innerHTML = `<strong>#${index + 1}</strong> ${entry.userId} 
+        <span> - Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}</span>`;
       list.appendChild(li);
     });
   }
