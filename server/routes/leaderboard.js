@@ -5,9 +5,9 @@ const Gelly = require('../models/Gelly');
 router.get('/', async (req, res) => {
   try {
     const leaderboard = await Gelly.find({})
-      .sort({ mood: -1 })
+      .sort({ mood: -1, energy: -1 })
       .limit(10)
-      .select('displayName mood');
+      .select('userId displayName mood energy cleanliness');
 
     res.json({ success: true, leaderboard });
   } catch (err) {
@@ -15,5 +15,6 @@ router.get('/', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
 
 module.exports = router;

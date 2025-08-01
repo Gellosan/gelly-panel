@@ -1,6 +1,23 @@
 const express = require('express');
 const { sendLeaderboard, broadcastState } = require('./server');
 const Gelly = require('./Gelly');
+const cors = require('cors');
+
+const allowedOrigins = [
+  'https://*.ext-twitch.tv',
+  'https://*.twitch.tv',
+  'https://localhost:3000', // for local testing
+];
+
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+const interactRoutes = require('./routes/interact');
+app.use('/v1/interact', interactRoutes);
+
 
 const app = express();
 app.use(express.json());

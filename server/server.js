@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -10,19 +9,24 @@ app.use(express.json());
 // Allow Twitch extension panel access
 app.use(cors({
   origin: [
-    /\.ext-twitch\.tv$/,
+    /\.ext-twitch\.tv$/,      // Twitch extension iframes
     'https://localhost:8080',
     'http://localhost:8080'
   ],
   credentials: true
 }));
 
-// Mongo connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error("❌ Mongo Error:", err));
+// MongoDB connection string (hardcoded)
+mongoose.connect(
+  "mongodb+srv://Gellosan:SBI3Q64Te41O7050@gellocluster.gzlntn3.mongodb.net/?retryWrites=true&w=majority&appName=GelloCluster",
+  {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+  }
+)
+.then(() => console.log("✅ MongoDB Connected"))
+.catch(err => console.error("❌ Mongo Error:", err));
+
 
 /**
  * Interact endpoint
@@ -82,6 +86,8 @@ app.get('/v1/leaderboard', async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 3000, () =>
-  console.log(`🚀 Server running on port ${process.env.PORT || 3000}`)
+// Start server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () =>
+  console.log(`🚀 Server running on port ${PORT}`)
 );
