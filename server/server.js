@@ -31,25 +31,22 @@ const Gelly = mongoose.models.Gelly || mongoose.model("Gelly", GellySchema);
 const app = express();
 app.use(express.json());
 
-// ===== CORS for Twitch Extensions =====
+// Flexible Twitch CORS
 app.use(
   cors({
     origin: (origin, callback) => {
       try {
-        if (!origin) return callback(null, true); // server-to-server or curl requests
-
+        if (!origin) return callback(null, true);
         const hostname = new URL(origin).hostname;
-
         if (
-          /\.ext-twitch\.tv$/.test(hostname) || // Twitch extension iframe
-          /\.twitch\.tv$/.test(hostname) || // Twitch main site
+          /\.ext-twitch\.tv$/.test(hostname) ||
+          /\.twitch\.tv$/.test(hostname) ||
           hostname === "localhost" ||
           hostname === "127.0.0.1"
         ) {
           return callback(null, true);
         }
       } catch (_) {}
-
       console.warn(`🚫 CORS blocked origin: ${origin}`);
       callback(new Error("CORS not allowed"));
     },
@@ -59,13 +56,11 @@ app.use(
   })
 );
 
-// Explicit OPTIONS handler for preflight
 app.options("*", cors());
 
 // ===== WebSocket Setup =====
 const server = require("http").createServer(app);
 const wss = new WebSocket.Server({ server });
-
 const clients = new Map();
 
 wss.on("connection", (ws, req) => {
@@ -95,11 +90,19 @@ wss.on("connection", (ws, req) => {
   }
 });
 
-function broadcastState(userId, gelly) {
+function sendToUser(userId, data) {
   const ws = clients.get(userId);
   if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: "update", state: gelly }));
+    ws.send(JSON.stringify(data));
   }
+}
+
+function broadcastState(userId, gelly) {
+  sendToUser(userId, { type: "update", state: gelly });
+}
+
+function sendFeedback(userId, message) {
+  sendToUser(userId, { type: "feedback", message });
 }
 
 async function sendLeaderboard() {
@@ -114,6 +117,24 @@ async function sendLeaderboard() {
   }
 }
 
+// ===== Passive Stat Decay =====
+setInterval(async () => {
+  const now = Date.now();
+  const decayRate = 1; // slower passive game
+  const gellys = await Gelly.find();
+  for (const gelly of gellys) {
+    const minutesSinceUpdate = (now - gelly.lastUpdated.getTime()) / 60000;
+    if (minutesSinceUpdate >= 1) {
+      gelly.energy = Math.max(0, gelly.energy - decayRate);
+      gelly.mood = Math.max(0, gelly.mood - decayRate);
+      gelly.cleanliness = Math.max(0, gelly.cleanliness - decayRate);
+      gelly.lastUpdated = new Date();
+      await gelly.save();
+      broadcastState(gelly.userId, gelly);
+    }
+  }
+}, 60000); // every minute
+
 // ===== Interact Endpoint =====
 app.post("/v1/interact", async (req, res) => {
   console.log("📥 /v1/interact hit:", req.body);
@@ -126,24 +147,31 @@ app.post("/v1/interact", async (req, res) => {
     if (!gelly) gelly = new Gelly({ userId: user, points: 0 });
 
     let pointsAwarded = 0;
+    let feedbackMessage = "";
 
     if (action.startsWith("color:")) {
       const color = action.split(":")[1];
-      if (["blue", "green", "pink"].includes(color)) gelly.color = color;
+      if (["blue", "green", "pink"].includes(color)) {
+        gelly.color = color;
+        feedbackMessage = `🎨 Your Gelly is now ${color}!`;
+      }
       pointsAwarded = 1;
     } else {
       switch (action) {
         case "feed":
           gelly.energy = Math.min(100, gelly.energy + 10);
           pointsAwarded = 5;
+          feedbackMessage = "🍎 You fed your Gelly!";
           break;
         case "play":
           gelly.mood = Math.min(100, gelly.mood + 10);
           pointsAwarded = 5;
+          feedbackMessage = "🎮 You played with your Gelly!";
           break;
         case "clean":
           gelly.cleanliness = Math.min(100, gelly.cleanliness + 10);
           pointsAwarded = 5;
+          feedbackMessage = "🛁 You cleaned your Gelly!";
           break;
         default:
           return res.json({ success: false, message: "Unknown action" });
@@ -160,6 +188,7 @@ app.post("/v1/interact", async (req, res) => {
 
     broadcastState(user, gelly);
     sendLeaderboard();
+    if (feedbackMessage) sendFeedback(user, feedbackMessage);
 
     res.json({ success: true });
   } catch (err) {
@@ -168,7 +197,6 @@ app.post("/v1/interact", async (req, res) => {
   }
 });
 
-// ===== Start Server =====
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
