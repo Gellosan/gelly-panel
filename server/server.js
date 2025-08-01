@@ -1,47 +1,51 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const WebSocket = require('ws');
-const connectDB = require('./db');
-const Gelly = require('./Gelly');
-
-// Connect to Mongo
-connectDB();
-
 const app = express();
-app.use(cors());
+
+// ---------- CORS FIX FOR TWITCH ----------
+const allowedOrigins = [
+  'https://localhost.twitch.tv', // Twitch local testing
+  'https://*.ext-twitch.tv',     // Twitch production extension iframes
+  'https://gelly-panel-kkp9.onrender.com' // Your panel hosting domain
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+
+    // Check if origin matches an allowed pattern
+    if (allowedOrigins.some(o => {
+      if (o.includes('*')) {
+        // Convert wildcard to regex
+        const regex = new RegExp('^' + o.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+        return regex.test(origin);
+      }
+      return o === origin;
+    })) {
+      return callback(null, true);
+    }
+
+    console.log('CORS blocked origin:', origin);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// Handle OPTIONS preflight for all routes
+app.options('*', cors());
+
+// ---------- JSON Parsing ----------
 app.use(express.json());
 
-// WebSocket setup
-const PORT = process.env.PORT || 8080;
-const server = app.listen(PORT, () => console.log(`Gelly server running on port ${PORT}`));
-const wss = new WebSocket.Server({ server });
+// ---------- Your Existing Routes ----------
+const interactRoute = require('./routes/interact'); // Example
+app.use('/v1/interact', interactRoute);
 
-// Leaderboard from Mongo
-async function sendLeaderboard() {
-  const top = await Gelly.find({})
-    .sort({ points: -1, mood: -1, energy: -1, cleanliness: -1 })
-    .limit(10)
-    .lean();
-
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ type: 'leaderboard', entries: top }));
-    }
-  });
-}
-
-// Broadcast user state
-function broadcastState(userId, state) {
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ type: 'update', user: userId, state }));
-    }
-  });
-}
-
-wss.on('connection', (ws) => {
-  console.log('New WebSocket connection');
+// ---------- Start Server ----------
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
-
-module.exports = { sendLeaderboard, broadcastState, app };
