@@ -6,17 +6,18 @@ const Gelly = require('./models/Gelly');
 const app = express();
 app.use(express.json());
 
-// Allow Twitch extension panel access
+// Allow Twitch extension panel + your Render frontend
 app.use(cors({
   origin: [
-    /\.ext-twitch\.tv$/,      // Twitch extension iframes
+    /\.ext-twitch\.tv$/,                       // Twitch extension iframe
+    'https://gelly-panel-kkp9.onrender.com',   // Your panel hosting on Render
     'https://localhost:8080',
     'http://localhost:8080'
   ],
   credentials: true
 }));
 
-// MongoDB connection string (hardcoded)
+// MongoDB connection
 mongoose.connect(
   "mongodb+srv://Gellosan:SBI3Q64Te41O7050@gellocluster.gzlntn3.mongodb.net/?retryWrites=true&w=majority&appName=GelloCluster",
   {
@@ -26,7 +27,6 @@ mongoose.connect(
 )
 .then(() => console.log("✅ MongoDB Connected"))
 .catch(err => console.error("❌ Mongo Error:", err));
-
 
 /**
  * Interact endpoint
@@ -82,12 +82,3 @@ app.get('/v1/leaderboard', async (req, res) => {
     res.json({ success: true, leaderboard });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT}`)
-);
