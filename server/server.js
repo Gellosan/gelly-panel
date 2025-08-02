@@ -170,7 +170,6 @@ app.post("/v1/interact", async (req, res) => {
 
     if (typeof gelly.applyDecay === "function") gelly.applyDecay();
 
-    // Ensure Twitch loginName is set
     if (!gelly.displayName || !gelly.loginName) {
       const twitchData = await fetchTwitchUserData(user);
       if (twitchData) {
