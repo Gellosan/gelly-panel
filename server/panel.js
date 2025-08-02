@@ -9,13 +9,21 @@ window.Twitch.ext.onAuthorized(function (auth) {
   const SERVER_URL = "https://gelly-server.onrender.com";
   let lastStage = null;
 
-  const COOLDOWN_MS = 60000;
+  // Per-action cooldowns in milliseconds
+  const ACTION_COOLDOWNS = {
+    feed: 300000,  // 5 min
+    clean: 240000, // 4 min
+    play: 180000,  // 3 min
+    color: 60000   // 1 min
+  };
+
   const lastActionTimes = { feed: 0, play: 0, clean: 0, color: 0 };
 
   function canUseAction(action) {
     const now = Date.now();
-    if (now - lastActionTimes[action] < COOLDOWN_MS) {
-      const remaining = Math.ceil((COOLDOWN_MS - (now - lastActionTimes[action])) / 1000);
+    const cooldown = ACTION_COOLDOWNS[action] || 60000; // fallback to 1 min
+    if (now - lastActionTimes[action] < cooldown) {
+      const remaining = Math.ceil((cooldown - (now - lastActionTimes[action])) / 1000);
       showTempMessage(`Please wait ${remaining}s before ${action} again.`, "yellow");
       return false;
     }
@@ -118,7 +126,6 @@ window.Twitch.ext.onAuthorized(function (auth) {
     }
     lastStage = state.stage;
 
-    // ✅ Round values for cleaner display
     document.getElementById("energy").innerText = Math.round(state.energy);
     document.getElementById("mood").innerText = Math.round(state.mood);
     document.getElementById("cleanliness").innerText = Math.round(state.cleanliness);
