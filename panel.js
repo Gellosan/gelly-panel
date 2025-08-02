@@ -26,6 +26,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
   function animateGelly(action) {
     const gellyImage = document.getElementById("gelly-image");
     if (!gellyImage) return;
+
     gellyImage.classList.add(`gelly-${action}-anim`);
     setTimeout(() => {
       gellyImage.classList.remove(`gelly-${action}-anim`);
@@ -33,47 +34,13 @@ window.Twitch.ext.onAuthorized(function (auth) {
   }
 
   // ========================
-  // COOLDOWN HANDLING
-  // ========================
-  const cooldowns = { feed: 0, play: 0, clean: 0 };
-
-  function setCooldown(action, seconds) {
-    cooldowns[action] = seconds;
-    const btn = document.getElementById(`${action}Btn`);
-    if (!btn) return;
-
-    btn.disabled = true;
-    updateButtonLabel(action);
-
-    const interval = setInterval(() => {
-      cooldowns[action]--;
-      if (cooldowns[action] <= 0) {
-        clearInterval(interval);
-        btn.disabled = false;
-        updateButtonLabel(action, true);
-      } else {
-        updateButtonLabel(action);
-      }
-    }, 1000);
-  }
-
-  function updateButtonLabel(action, reset = false) {
-    const btn = document.getElementById(`${action}Btn`);
-    if (!btn) return;
-    if (reset) {
-      if (action === "feed") btn.innerText = "Feed (Cost: 1000 jellybeans)";
-      else if (action === "play") btn.innerText = "Play";
-      else if (action === "clean") btn.innerText = "Clean";
-    } else {
-      btn.innerText = `${action.charAt(0).toUpperCase() + action.slice(1)} (${cooldowns[action]}s)`;
-    }
-  }
-
-  // ========================
   // WEBSOCKET
   // ========================
   function connectWebSocket() {
-    if (!twitchUserId) return;
+    if (!twitchUserId) {
+      console.warn("[DEBUG] No Twitch user ID, skipping WebSocket connection.");
+      return;
+    }
     const wsUrl = `${SERVER_URL.replace(/^http/, "ws")}/?user=${twitchUserId}`;
     console.log("[DEBUG] Connecting WebSocket:", wsUrl);
 
@@ -95,17 +62,19 @@ window.Twitch.ext.onAuthorized(function (auth) {
   // ========================
   function interact(action) {
     if (!twitchUserId) {
+      console.warn("[DEBUG] Attempted to interact without a Twitch user ID");
       return showTempMessage("User not authenticated.", "red");
     }
 
     console.log(`[DEBUG] Sending action to server: ${action}`);
-    animateGelly(action);
 
-    let actionText = "";
-    if (action === "play") actionText = "You play with your Gelly!";
-    else if (action === "feed") actionText = "You feed your Gelly!";
-    else if (action === "clean") actionText = "You clean your Gelly!";
-    showTempMessage(actionText, "#0f0");
+    // Different text for play
+    const actionMessage =
+      action === "play" ? "You play with your Gelly!" : `You ${action} your Gelly!`;
+
+    // Instant animation + feedback BEFORE network finishes
+    animateGelly(action.includes("color:") ? "color" : action);
+    showTempMessage(actionMessage, "#0f0");
 
     fetch(`${SERVER_URL}/v1/interact`, {
       method: "POST",
@@ -113,18 +82,12 @@ window.Twitch.ext.onAuthorized(function (auth) {
       body: JSON.stringify({ action, user: twitchUserId }),
     })
       .then(async (res) => {
+        console.log("[DEBUG] Fetch response status:", res.status);
         const data = await res.json().catch(() => ({}));
         console.log("[DEBUG] Fetch response data:", data);
 
         if (!data.success) {
-          if (data.cooldown) {
-            setCooldown(action, data.cooldown);
-            showTempMessage(`Please wait ${data.cooldown}s before ${action}ing again.`, "yellow");
-          } else {
-            showTempMessage(data.message || "Action failed", "red");
-          }
-        } else {
-          if (data.cooldown) setCooldown(action, data.cooldown);
+          showTempMessage(data.message || "Action failed", "red");
         }
       })
       .catch((err) => {
@@ -140,13 +103,21 @@ window.Twitch.ext.onAuthorized(function (auth) {
     const list = document.getElementById("leaderboard-list");
     if (!list) return;
 
+    const sorted = [...entries].sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.mood !== a.mood) return b.mood - a.mood;
+      if (b.energy !== a.energy) return b.energy - a.energy;
+      return b.cleanliness - a.cleanliness;
+    });
+
+    const topTen = sorted.slice(0, 10);
     list.innerHTML = "";
-    entries.slice(0, 10).forEach((entry, index) => {
+
+    topTen.forEach((entry, index) => {
       const li = document.createElement("li");
       li.innerHTML = `
-        <span class="rank">#${index + 1}</span>
-        <span class="name">${entry.displayName || entry.userId}</span>
-        <span class="score">${entry.points} jellybeans</span>
+        <strong>#${index + 1}</strong> ${entry.displayName || entry.userId}
+        <span> - Points: ${entry.points} | Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}</span>
       `;
       list.appendChild(li);
     });
@@ -172,6 +143,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
   }
 
   function showHelp() {
+    console.log("[DEBUG] Toggling help box");
     const box = document.getElementById("help-box");
     if (box) box.style.display = box.style.display === "none" ? "block" : "none";
   }
@@ -182,6 +154,12 @@ window.Twitch.ext.onAuthorized(function (auth) {
   document.getElementById("feedBtn")?.addEventListener("click", () => interact("feed"));
   document.getElementById("playBtn")?.addEventListener("click", () => interact("play"));
   document.getElementById("cleanBtn")?.addEventListener("click", () => interact("clean"));
+
+  document.getElementById("gellyColor")?.addEventListener("change", (e) => {
+    const color = e.target.value;
+    interact(`color:${color}`);
+  });
+
   document.getElementById("helpBtn")?.addEventListener("click", showHelp);
 
   connectWebSocket();
