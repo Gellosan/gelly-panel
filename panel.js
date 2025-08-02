@@ -8,6 +8,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
   }
 
   const SERVER_URL = "https://gelly-server.onrender.com";
+  let lastStage = null; // Track previous stage to detect evolution
 
   // ========================
   // COOLDOWN SETTINGS
@@ -29,13 +30,13 @@ window.Twitch.ext.onAuthorized(function (auth) {
   // ========================
   // FEEDBACK & ANIMATION
   // ========================
-  function showTempMessage(msg, color = "#fff") {
+  function showTempMessage(msg, color = "#fff", duration = 2500) {
     const el = document.getElementById("message");
     if (!el) return;
     el.innerText = msg;
     el.style.color = color;
     el.style.opacity = "1";
-    setTimeout(() => { el.style.opacity = "0"; }, 2500);
+    setTimeout(() => { el.style.opacity = "0"; }, duration);
   }
 
   function animateGelly(action) {
@@ -45,6 +46,16 @@ window.Twitch.ext.onAuthorized(function (auth) {
     setTimeout(() => {
       gellyImage.classList.remove(`gelly-${action}-anim`);
     }, 800);
+  }
+
+  function showEvolutionMessage(newStage) {
+    let stageName = "";
+    if (newStage === "blob") stageName = "Blob!";
+    else if (newStage === "gelly") stageName = "Adult Gelly!";
+
+    if (stageName) {
+      showTempMessage(`🎉 Your Gelly evolved into ${stageName}`, "#0ff", 4000);
+    }
   }
 
   // ========================
@@ -141,6 +152,13 @@ window.Twitch.ext.onAuthorized(function (auth) {
 
   function updateUI(state) {
     console.log("[DEBUG] Updating UI with state:", state);
+
+    // Detect evolution
+    if (lastStage && state.stage !== lastStage) {
+      showEvolutionMessage(state.stage);
+    }
+    lastStage = state.stage;
+
     document.getElementById("energy").innerText = state.energy;
     document.getElementById("mood").innerText = state.mood;
     document.getElementById("cleanliness").innerText = state.cleanliness;
@@ -180,6 +198,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
+          lastStage = data.state.stage; // track starting stage
           updateUI(data.state);
           document.getElementById("landing-page").style.display = "none";
           document.getElementById("gelly-container").style.display = "block";
