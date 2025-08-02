@@ -8,14 +8,6 @@ window.Twitch.ext.onAuthorized(function (auth) {
 
   const SERVER_URL = "https://gelly-server.onrender.com";
 
-  // Track last action times locally (per action)
-  const lastActionTimes = {
-    feed: 0,
-    play: 0,
-    clean: 0
-  };
-  const COOLDOWN_MS = 60000; // 60 seconds
-
   // ========================
   // FEEDBACK & ANIMATION
   // ========================
@@ -28,13 +20,12 @@ window.Twitch.ext.onAuthorized(function (auth) {
 
     setTimeout(() => {
       el.style.opacity = "0";
-    }, 2000);
+    }, 2500);
   }
 
   function animateGelly(action) {
     const gellyImage = document.getElementById("gelly-image");
     if (!gellyImage) return;
-
     gellyImage.classList.add(`gelly-${action}-anim`);
     setTimeout(() => {
       gellyImage.classList.remove(`gelly-${action}-anim`);
@@ -42,13 +33,47 @@ window.Twitch.ext.onAuthorized(function (auth) {
   }
 
   // ========================
+  // COOLDOWN HANDLING
+  // ========================
+  const cooldowns = { feed: 0, play: 0, clean: 0 };
+
+  function setCooldown(action, seconds) {
+    cooldowns[action] = seconds;
+    const btn = document.getElementById(`${action}Btn`);
+    if (!btn) return;
+
+    btn.disabled = true;
+    updateButtonLabel(action);
+
+    const interval = setInterval(() => {
+      cooldowns[action]--;
+      if (cooldowns[action] <= 0) {
+        clearInterval(interval);
+        btn.disabled = false;
+        updateButtonLabel(action, true);
+      } else {
+        updateButtonLabel(action);
+      }
+    }, 1000);
+  }
+
+  function updateButtonLabel(action, reset = false) {
+    const btn = document.getElementById(`${action}Btn`);
+    if (!btn) return;
+    if (reset) {
+      if (action === "feed") btn.innerText = "Feed (Cost: 1000 jellybeans)";
+      else if (action === "play") btn.innerText = "Play";
+      else if (action === "clean") btn.innerText = "Clean";
+    } else {
+      btn.innerText = `${action.charAt(0).toUpperCase() + action.slice(1)} (${cooldowns[action]}s)`;
+    }
+  }
+
+  // ========================
   // WEBSOCKET
   // ========================
   function connectWebSocket() {
-    if (!twitchUserId) {
-      console.warn("[DEBUG] No Twitch user ID, skipping WebSocket connection.");
-      return;
-    }
+    if (!twitchUserId) return;
     const wsUrl = `${SERVER_URL.replace(/^http/, "ws")}/?user=${twitchUserId}`;
     console.log("[DEBUG] Connecting WebSocket:", wsUrl);
 
@@ -70,31 +95,17 @@ window.Twitch.ext.onAuthorized(function (auth) {
   // ========================
   function interact(action) {
     if (!twitchUserId) {
-      console.warn("[DEBUG] Attempted to interact without a Twitch user ID");
       return showTempMessage("User not authenticated.", "red");
     }
 
-    // Cooldown check (per action)
-    const now = Date.now();
-    if (now - lastActionTimes[action] < COOLDOWN_MS) {
-      const remaining = Math.ceil((COOLDOWN_MS - (now - lastActionTimes[action])) / 1000);
-      return showTempMessage(`Please wait ${remaining}s before doing that again.`, "yellow");
-    }
-
-    // Save time locally
-    lastActionTimes[action] = now;
-
     console.log(`[DEBUG] Sending action to server: ${action}`);
-
-    // Instant animation + feedback BEFORE network finishes
     animateGelly(action);
-    if (action === "play") {
-      showTempMessage("You play with your Gelly!", "#0f0");
-    } else if (action === "feed") {
-      showTempMessage("You feed your Gelly!", "#0f0");
-    } else if (action === "clean") {
-      showTempMessage("You clean your Gelly!", "#0f0");
-    }
+
+    let actionText = "";
+    if (action === "play") actionText = "You play with your Gelly!";
+    else if (action === "feed") actionText = "You feed your Gelly!";
+    else if (action === "clean") actionText = "You clean your Gelly!";
+    showTempMessage(actionText, "#0f0");
 
     fetch(`${SERVER_URL}/v1/interact`, {
       method: "POST",
@@ -103,15 +114,21 @@ window.Twitch.ext.onAuthorized(function (auth) {
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
+        console.log("[DEBUG] Fetch response data:", data);
+
         if (!data.success) {
-          // Reset cooldown if server rejects
-          lastActionTimes[action] = 0;
-          showTempMessage(data.message || "Action failed", "red");
+          if (data.cooldown) {
+            setCooldown(action, data.cooldown);
+            showTempMessage(`Please wait ${data.cooldown}s before ${action}ing again.`, "yellow");
+          } else {
+            showTempMessage(data.message || "Action failed", "red");
+          }
+        } else {
+          if (data.cooldown) setCooldown(action, data.cooldown);
         }
       })
       .catch((err) => {
         console.error("[DEBUG] Network error during interact:", err);
-        lastActionTimes[action] = 0;
         showTempMessage("Network error", "red");
       });
   }
@@ -124,11 +141,12 @@ window.Twitch.ext.onAuthorized(function (auth) {
     if (!list) return;
 
     list.innerHTML = "";
-    entries.forEach((entry) => {
+    entries.slice(0, 10).forEach((entry, index) => {
       const li = document.createElement("li");
       li.innerHTML = `
-        <strong>#${entry.rank}</strong> ${entry.user}
-        <span> - Points: ${entry.points} | Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}</span>
+        <span class="rank">#${index + 1}</span>
+        <span class="name">${entry.displayName || entry.userId}</span>
+        <span class="score">${entry.points} jellybeans</span>
       `;
       list.appendChild(li);
     });
@@ -154,7 +172,6 @@ window.Twitch.ext.onAuthorized(function (auth) {
   }
 
   function showHelp() {
-    console.log("[DEBUG] Toggling help box");
     const box = document.getElementById("help-box");
     if (box) box.style.display = box.style.display === "none" ? "block" : "none";
   }
