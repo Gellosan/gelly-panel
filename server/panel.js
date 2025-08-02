@@ -11,6 +11,8 @@ const cleanlinessEl = document.getElementById("cleanliness");
 const gellyImage = document.getElementById("gelly-image");
 const leaderboardList = document.getElementById("leaderboard-list");
 const messageEl = document.getElementById("message");
+const gameScreenEl = document.getElementById("game-screen");
+const startScreenEl = document.getElementById("start-screen");
 
 // ===== Utility =====
 function showTempMessage(msg) {
@@ -25,7 +27,7 @@ function animateGelly() {
 
 function updateGellyImage(stage, color) {
   if (stage === "egg") {
-    gellyImage.src = `assets/egg_${color}.png`;
+    gellyImage.src = `assets/egg.png`; // Always the same egg sprite
   } else if (stage === "blob") {
     gellyImage.src = `assets/blob_${color}.png`;
   } else {
@@ -42,7 +44,6 @@ async function fetchJellybeanBalance() {
     const data = await res.json();
     jellybeanBalance = data.points || 0;
     jellybeanBalanceEl.textContent = jellybeanBalance.toLocaleString();
-    console.debug("[DEBUG] Updated Jellybean balance:", jellybeanBalance);
   } catch (err) {
     console.error("[ERROR] Failed to fetch jellybean balance:", err);
   }
@@ -80,11 +81,21 @@ async function interact(action) {
       showTempMessage(data.message || "Action failed");
     } else {
       animateGelly();
-      fetchJellybeanBalance(); // instant update
+      fetchJellybeanBalance();
     }
   } catch (err) {
     console.error("[ERROR] interact() failed:", err);
   }
+}
+
+// ===== Start Game =====
+function startGame() {
+  if (!gameScreenEl || !startScreenEl) {
+    console.error("[ERROR] Missing start or game screen element in HTML");
+    return;
+  }
+  gameScreenEl.style.display = "block";
+  startScreenEl.style.display = "none";
 }
 
 // ===== WebSocket =====
@@ -92,7 +103,6 @@ let ws;
 function connectWebSocket() {
   if (!twitchUserId) return;
   ws = new WebSocket(`wss://gelly-server.onrender.com?user=${twitchUserId}`);
-
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === "update") {
@@ -105,10 +115,7 @@ function connectWebSocket() {
 
 // ===== Twitch Auth =====
 Twitch.ext.onAuthorized(async function(auth) {
-  console.debug("[DEBUG] onAuthorized fired. twitchUserId:", auth.userId);
   twitchUserId = auth.userId;
-
-  // Fetch Gelly state
   try {
     const res = await fetch(`https://gelly-server.onrender.com/v1/state/${twitchUserId}`);
     if (res.ok) {
@@ -122,11 +129,11 @@ Twitch.ext.onAuthorized(async function(auth) {
   } catch (err) {
     console.error("[ERROR] Fetching state failed:", err);
   }
-
   connectWebSocket();
 });
 
 // ===== Button Listeners =====
-document.getElementById("feedBtn").addEventListener("click", () => interact("feed"));
-document.getElementById("playBtn").addEventListener("click", () => interact("play"));
-document.getElementById("cleanBtn").addEventListener("click", () => interact("clean"));
+document.getElementById("feedBtn")?.addEventListener("click", () => interact("feed"));
+document.getElementById("playBtn")?.addEventListener("click", () => interact("play"));
+document.getElementById("cleanBtn")?.addEventListener("click", () => interact("clean"));
+document.getElementById("startGameBtn")?.addEventListener("click", startGame);
