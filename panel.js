@@ -6,7 +6,9 @@ window.Twitch.ext.onAuthorized(function (auth) {
     console.warn("[DEBUG] No Twitch user ID detected. Buttons will not send requests.");
   }
 
-  const SERVER_URL = "https://gelly-panel-kkp9.onrender.com";
+  // ✅ Correct server URLs
+  const SERVER_HTTP_URL = "https://gelly-server.onrender.com"; // API requests
+  const SERVER_WS_URL = "wss://gelly-server.onrender.com";     // WebSocket connection
 
   // ========================
   // FEEDBACK & ANIMATION
@@ -17,6 +19,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
     el.innerText = msg;
     el.style.color = color;
     el.style.opacity = "1";
+
     setTimeout(() => {
       el.style.opacity = "0";
     }, 2000);
@@ -25,6 +28,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
   function animateGelly(action) {
     const gellyImage = document.getElementById("gelly-image");
     if (!gellyImage) return;
+
     gellyImage.classList.add(`gelly-${action}-anim`);
     setTimeout(() => {
       gellyImage.classList.remove(`gelly-${action}-anim`);
@@ -39,10 +43,11 @@ window.Twitch.ext.onAuthorized(function (auth) {
       console.warn("[DEBUG] No Twitch user ID, skipping WebSocket connection.");
       return;
     }
-    const wsUrl = `${SERVER_URL.replace(/^http/, "ws")}/?user=${twitchUserId}`;
+    const wsUrl = `${SERVER_WS_URL}/?user=${twitchUserId}`;
     console.log("[DEBUG] Connecting WebSocket:", wsUrl);
 
     const socket = new WebSocket(wsUrl);
+
     socket.addEventListener("open", () => console.log("[DEBUG] WebSocket connected"));
     socket.addEventListener("error", (err) => console.error("[DEBUG] WebSocket error", err));
 
@@ -64,10 +69,12 @@ window.Twitch.ext.onAuthorized(function (auth) {
     }
 
     console.log(`[DEBUG] Sending action to server: ${action}`);
+
+    // Instant animation + feedback BEFORE network finishes
     animateGelly(action);
     showTempMessage(`You ${action} your Gelly!`, "#0f0");
 
-    fetch(`${SERVER_URL}/v1/interact`, {
+    fetch(`${SERVER_HTTP_URL}/v1/interact`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, user: twitchUserId }),
@@ -85,27 +92,6 @@ window.Twitch.ext.onAuthorized(function (auth) {
         console.error("[DEBUG] Network error during interact:", err);
         showTempMessage("Network error", "red");
       });
-  }
-
-  // ========================
-  // PASSIVE GAMEPLAY LOOP
-  // ========================
-  function startPassiveDecay() {
-    setInterval(() => {
-      console.log("[DEBUG] Triggering passive Gelly decay...");
-      fetch(`${SERVER_URL}/v1/passive-update`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user: twitchUserId }),
-      })
-        .then(async (res) => {
-          const data = await res.json().catch(() => ({}));
-          if (data.success && data.state) {
-            updateUI(data.state);
-          }
-        })
-        .catch((err) => console.error("[DEBUG] Passive decay network error", err));
-    }, 60 * 60 * 1000); // once every hour
   }
 
   // ========================
@@ -167,7 +153,5 @@ window.Twitch.ext.onAuthorized(function (auth) {
   document.getElementById("cleanBtn")?.addEventListener("click", () => interact("clean"));
   document.getElementById("helpBtn")?.addEventListener("click", showHelp);
 
-  // Init
   connectWebSocket();
-  startPassiveDecay();
 });
