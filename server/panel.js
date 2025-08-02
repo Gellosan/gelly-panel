@@ -6,9 +6,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
     console.warn("[DEBUG] No Twitch user ID detected. Buttons will not send requests.");
   }
 
-  // ✅ Correct server URLs
-  const SERVER_HTTP_URL = "https://gelly-server.onrender.com"; // API requests
-  const SERVER_WS_URL = "wss://gelly-server.onrender.com";     // WebSocket connection
+  const SERVER_URL = "https://gelly-server.onrender.com";
 
   // ========================
   // FEEDBACK & ANIMATION
@@ -22,7 +20,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
 
     setTimeout(() => {
       el.style.opacity = "0";
-    }, 2000);
+    }, 2500);
   }
 
   function animateGelly(action) {
@@ -43,7 +41,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
       console.warn("[DEBUG] No Twitch user ID, skipping WebSocket connection.");
       return;
     }
-    const wsUrl = `${SERVER_WS_URL}/?user=${twitchUserId}`;
+    const wsUrl = `${SERVER_URL.replace(/^http/, "ws")}/?user=${twitchUserId}`;
     console.log("[DEBUG] Connecting WebSocket:", wsUrl);
 
     const socket = new WebSocket(wsUrl);
@@ -70,11 +68,15 @@ window.Twitch.ext.onAuthorized(function (auth) {
 
     console.log(`[DEBUG] Sending action to server: ${action}`);
 
-    // Instant animation + feedback BEFORE network finishes
-    animateGelly(action);
-    showTempMessage(`You ${action} your Gelly!`, "#0f0");
+    // Different text for play
+    const actionMessage =
+      action === "play" ? "You play with your Gelly!" : `You ${action} your Gelly!`;
 
-    fetch(`${SERVER_HTTP_URL}/v1/interact`, {
+    // Instant animation + feedback BEFORE network finishes
+    animateGelly(action.includes("color:") ? "color" : action);
+    showTempMessage(actionMessage, "#0f0");
+
+    fetch(`${SERVER_URL}/v1/interact`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, user: twitchUserId }),
@@ -102,6 +104,7 @@ window.Twitch.ext.onAuthorized(function (auth) {
     if (!list) return;
 
     const sorted = [...entries].sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
       if (b.mood !== a.mood) return b.mood - a.mood;
       if (b.energy !== a.energy) return b.energy - a.energy;
       return b.cleanliness - a.cleanliness;
@@ -113,8 +116,8 @@ window.Twitch.ext.onAuthorized(function (auth) {
     topTen.forEach((entry, index) => {
       const li = document.createElement("li");
       li.innerHTML = `
-        <strong>#${index + 1}</strong> ${entry.user}
-        <span> - Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}</span>
+        <strong>#${index + 1}</strong> ${entry.displayName || entry.userId}
+        <span> - Points: ${entry.points} | Mood: ${entry.mood} | Energy: ${entry.energy} | Cleanliness: ${entry.cleanliness}</span>
       `;
       list.appendChild(li);
     });
@@ -151,8 +154,13 @@ window.Twitch.ext.onAuthorized(function (auth) {
   document.getElementById("feedBtn")?.addEventListener("click", () => interact("feed"));
   document.getElementById("playBtn")?.addEventListener("click", () => interact("play"));
   document.getElementById("cleanBtn")?.addEventListener("click", () => interact("clean"));
+
+  document.getElementById("gellyColor")?.addEventListener("change", (e) => {
+    const color = e.target.value;
+    interact(`color:${color}`);
+  });
+
   document.getElementById("helpBtn")?.addEventListener("click", showHelp);
 
   connectWebSocket();
 });
-
