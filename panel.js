@@ -1,5 +1,6 @@
 // ===== Gelly Extension Panel Script =====
 let twitchUserId = null;
+let twitchAuthToken = null; // ✅ store Twitch JWT
 let loginName = null;
 let jellybeanBalance = 0;
 let currentStage = "egg"; // remember current Gelly stage
@@ -62,7 +63,6 @@ function updateGellyImage(stage, color) {
 }
 
 function updateColorPickerButtons() {
-  // Disable color change if not enough jellybeans
   const colorSelect = document.getElementById("gellyColor");
   if (colorSelect) {
     colorSelect.disabled = jellybeanBalance < COLOR_CHANGE_COST;
@@ -95,7 +95,7 @@ async function fetchJellybeanBalance() {
 
 // ===== State Updates =====
 function updateUIFromState(state) {
-  currentStage = state.stage; // store current stage
+  currentStage = state.stage;
   energyEl.textContent = Math.floor(state.energy);
   moodEl.textContent = Math.floor(state.mood);
   cleanlinessEl.textContent = Math.floor(state.cleanliness);
@@ -114,7 +114,7 @@ function updateLeaderboard(entries) {
 
 // ===== Interact =====
 async function interact(action) {
-  if (!twitchUserId) return;
+  if (!twitchUserId || !twitchAuthToken) return;
 
   const ACTION_COOLDOWNS = { feed: 300000, clean: 240000, play: 180000, color: 60000 };
   const cooldownKey = action.startsWith("color:") ? "color" : action;
@@ -130,7 +130,10 @@ async function interact(action) {
   try {
     const res = await fetch("https://gelly-server.onrender.com/v1/interact", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Authorization": `Bearer ${twitchAuthToken}`, // ✅ Send JWT
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ user: twitchUserId, action })
     });
     const data = await res.json();
@@ -140,7 +143,6 @@ async function interact(action) {
       return;
     }
 
-    // Trigger animations
     if (action === "feed" || action === "play" || action === "clean") {
       triggerGellyAnimation(action);
     }
@@ -149,10 +151,8 @@ async function interact(action) {
     }
     animateGelly();
 
-    // Start cooldown
     setCooldown(cooldownKey, cooldownMs);
 
-    // Cooldown button text countdown
     if (button) {
       const originalText = button.textContent;
       let remaining = Math.floor(cooldownMs / 1000);
@@ -170,7 +170,6 @@ async function interact(action) {
       }, 1000);
     }
 
-    // Update jellybean balance
     if (typeof data.newBalance === "number") {
       jellybeanBalance = data.newBalance;
       jellybeanBalanceEl.textContent = jellybeanBalance.toLocaleString();
@@ -212,8 +211,16 @@ function connectWebSocket() {
 // ===== Twitch Auth =====
 Twitch.ext.onAuthorized(async function(auth) {
   twitchUserId = auth.userId;
+  twitchAuthToken = auth.token; // ✅ Save Twitch JWT
+
   try {
-    const res = await fetch(`https://gelly-server.onrender.com/v1/state/${twitchUserId}`);
+    const res = await fetch(`https://gelly-server.onrender.com/v1/state/${twitchUserId}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${twitchAuthToken}`, // ✅ Send JWT
+        "Content-Type": "application/json"
+      }
+    });
     if (res.ok) {
       const data = await res.json();
       if (data.success) {
@@ -244,12 +251,13 @@ document.addEventListener("DOMContentLoaded", () => {
 // ===== Color Picker (Dropdown) =====
 document.querySelectorAll(".color-btn").forEach(btn => {
   btn.addEventListener("click", () => {
-    const selectedColor = btn.dataset.color; // blue, green, pink
-    interact(`color:${selectedColor}`); // send to backend
-    triggerColorChangeEffect(); // sparkle animation
-    updateGellyImage(currentStage, selectedColor); // instant local update
+    const selectedColor = btn.dataset.color;
+    interact(`color:${selectedColor}`);
+    triggerColorChangeEffect();
+    updateGellyImage(currentStage, selectedColor);
   });
 });
+
 // ===== Help Button Toggle =====
 document.getElementById("helpBtn")?.addEventListener("click", () => {
   const helpBox = document.getElementById("help-box");
@@ -263,4 +271,3 @@ document.getElementById("helpBtn")?.addEventListener("click", () => {
     helpBtn.textContent = "Help";
   }
 });
-
