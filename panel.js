@@ -389,7 +389,9 @@ async function interact(action) {
         action === "feed" ? document.getElementById("feedBtn") :
         action === "play" ? document.getElementById("playBtn") :
         action === "clean" ? document.getElementById("cleanBtn") : null;
+
     if (isOnCooldown(cooldownKey)) return;
+
     try {
         const res = await fetch("https://gelly-server.onrender.com/v1/interact", {
             method: "POST",
@@ -399,23 +401,14 @@ async function interact(action) {
             },
             body: JSON.stringify({ user: twitchUserId, action })
         });
+
         const data = await res.json();
         if (!data.success) {
             showTempMessage(data.message || "Action failed");
-            return;
+            return; // ❌ Don't start cooldown if server failed
         }
 
-        if (data.state) {
-            updateUIFromState(data.state);
-        }
-
-        if (action === "feed" || action === "play" || action === "clean") {
-            triggerGellyAnimation(action);
-        }
-        if (action.startsWith("color:")) {
-            triggerColorChangeEffect();
-        }
-        animateGelly();
+        // ✅ Only start cooldown when success is true
         setCooldown(cooldownKey, cooldownMs);
         if (button) {
             const originalText = button.textContent;
@@ -433,6 +426,20 @@ async function interact(action) {
                 }
             }, 1000);
         }
+
+        // Update UI from latest state
+        if (data.state) {
+            updateUIFromState(data.state);
+        }
+
+        if (action === "feed" || action === "play" || action === "clean") {
+            triggerGellyAnimation(action);
+        }
+        if (action.startsWith("color:")) {
+            triggerColorChangeEffect();
+        }
+        animateGelly();
+
         if (typeof data.newBalance === "number") {
             jellybeanBalance = data.newBalance;
             jellybeanBalanceEl.textContent = jellybeanBalance.toLocaleString();
@@ -443,8 +450,10 @@ async function interact(action) {
         }
     } catch (err) {
         console.error("[ERROR] interact() failed:", err);
+        // ❌ No cooldown on network/server error
     }
 }
+
 
 // ===== Start Game =====
 function startGame() {
