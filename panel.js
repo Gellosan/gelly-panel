@@ -22,6 +22,9 @@ function showLinkButton() {
     linkBtn.style.display = "block";
     linkBtn.addEventListener("click", () => {
         Twitch.ext.actions.requestIdShare();
+        localStorage.setItem("linkedOnce", "true"); // remember link
+        linkBtn.style.display = "none";
+        setTimeout(() => initGame(), 1000); // start after linking
     });
 }
 
@@ -201,19 +204,25 @@ function connectWebSocket() {
     };
 }
 
-// ===== Twitch Auth (Merged Linking + Game Logic) =====
-Twitch.ext.onAuthorized(async function(auth) {
+// ===== Twitch Auth =====
+Twitch.ext.onAuthorized(function(auth) {
     console.log("Authorized with ID:", auth.userId);
     twitchUserId = auth.userId;
     twitchAuthToken = auth.token;
 
-    if (auth.userId.startsWith("U")) {
-        console.log("⚠️ User is opaque, needs to link account");
+    if (twitchUserId.startsWith("U") && localStorage.getItem("linkedOnce") !== "true") {
+        console.log("⚠️ User is opaque — needs to link");
         showLinkButton();
-        return; // Don't run game logic until they link
+        return;
     }
 
-    console.log("✅ Linked user, loading game data...");
+    // Already linked → start game
+    initGame();
+});
+
+// ===== Init Game =====
+async function initGame() {
+    console.log("Starting game for user:", twitchUserId);
     try {
         const res = await fetch(`https://gelly-server.onrender.com/v1/state/${twitchUserId}`, {
             method: "GET",
@@ -234,13 +243,15 @@ Twitch.ext.onAuthorized(async function(auth) {
         console.error("[ERROR] Fetching state failed:", err);
     }
     connectWebSocket();
-});
+    startGame();
+}
 
 // ===== Action Buttons =====
 document.getElementById("feedBtn")?.addEventListener("click", () => interact("feed"));
 document.getElementById("playBtn")?.addEventListener("click", () => interact("play"));
 document.getElementById("cleanBtn")?.addEventListener("click", () => interact("clean"));
 document.getElementById("startGameBtn")?.addEventListener("click", startGame);
+
 document.addEventListener("DOMContentLoaded", () => {
     const startGameBtn = document.getElementById("startGameBtn");
     if (startGameBtn) {
