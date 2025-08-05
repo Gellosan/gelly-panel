@@ -147,6 +147,17 @@ async function fetchStore() {
         console.error("Failed to fetch store:", err);
     }
 }
+// Open Store
+document.getElementById("openStoreBtn").addEventListener("click", () => {
+    document.getElementById("gelly-container").style.display = "none";
+    document.getElementById("store-menu").style.display = "block";
+});
+
+// Back to Game
+document.getElementById("backToGameBtn").addEventListener("click", () => {
+    document.getElementById("store-menu").style.display = "none";
+    document.getElementById("gelly-container").style.display = "block";
+});
 
 function renderStore(items) {
     const storeContainer = document.getElementById("store");
@@ -314,8 +325,13 @@ function updateUIFromState(state) {
 
     // === Inventory + Store visibility ===
     if (state.stage !== "egg") {
-        document.getElementById("inventory-section").style.display = "block";
-        document.getElementById("store-section").style.display = "block";
+    document.getElementById("openInventoryBtn").style.display = "inline-block";
+    document.getElementById("openStoreBtn").style.display = "inline-block";
+} else {
+    document.getElementById("openInventoryBtn").style.display = "none";
+    document.getElementById("openStoreBtn").style.display = "none";
+}
+
 
         // Directly use inventory from state if available
         if (Array.isArray(state.inventory)) {
@@ -453,6 +469,31 @@ async function interact(action) {
         // ❌ No cooldown on network/server error
     }
 }
+// ===== Init Game =====
+async function initGame() {
+    console.log("Starting game for user:", twitchUserId);
+    try {
+        const res = await fetch(`https://gelly-server.onrender.com/v1/state/${twitchUserId}`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${twitchAuthToken}`,
+                "Content-Type": "application/json"
+            }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.success) {
+                updateUIFromState(data.state);
+                loginName = data.state.loginName;
+                await fetchJellybeanBalance();
+                startGame(); // ✅ Only show game after state loads
+            }
+        }
+    } catch (err) {
+        console.error("[ERROR] Fetching state failed:", err);
+    }
+    connectWebSocket();
+}
 
 
 // ===== Start Game =====
@@ -503,37 +544,16 @@ function startKeepAlive() {
     }, 50000);
 }
 
-// ===== Init Game =====
-async function initGame() {
-    console.log("Starting game for user:", twitchUserId);
-    try {
-        const res = await fetch(`https://gelly-server.onrender.com/v1/state/${twitchUserId}`, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${twitchAuthToken}`,
-                "Content-Type": "application/json"
-            }
-        });
-        if (res.ok) {
-            const data = await res.json();
-            if (data.success) {
-                updateUIFromState(data.state);
-                loginName = data.state.loginName;
-                await fetchJellybeanBalance();
-            }
-        }
-    } catch (err) {
-        console.error("[ERROR] Fetching state failed:", err);
-    }
-    connectWebSocket();
-    startGame();
-}
+
 
 // ===== Action Buttons =====
 document.getElementById("feedBtn")?.addEventListener("click", () => interact("feed"));
 document.getElementById("playBtn")?.addEventListener("click", () => interact("play"));
 document.getElementById("cleanBtn")?.addEventListener("click", () => interact("clean"));
-document.getElementById("startGameBtn")?.addEventListener("click", startGame);
+document.getElementById("startGameBtn")?.addEventListener("click", () => {
+    initGame(); // ✅ Load game state and then start game
+});
+
 
 document.addEventListener("DOMContentLoaded", () => {
     const startGameBtn = document.getElementById("startGameBtn");
@@ -563,5 +583,24 @@ document.getElementById("helpBtn")?.addEventListener("click", () => {
         helpBox.style.display = "none";
         helpBtn.textContent = "Help";
     }
+});
+// ===== Open / Close Inventory =====
+document.getElementById("openInventoryBtn").addEventListener("click", () => {
+    document.getElementById("gelly-container").style.display = "none";
+    document.getElementById("inventory-menu").style.display = "block";
+});
+document.getElementById("backFromInventoryBtn").addEventListener("click", () => {
+    document.getElementById("inventory-menu").style.display = "none";
+    document.getElementById("gelly-container").style.display = "block";
+});
+
+// ===== Open / Close Store =====
+document.getElementById("openStoreBtn").addEventListener("click", () => {
+    document.getElementById("gelly-container").style.display = "none";
+    document.getElementById("store-menu").style.display = "block";
+});
+document.getElementById("backFromStoreBtn").addEventListener("click", () => {
+    document.getElementById("store-menu").style.display = "none";
+    document.getElementById("gelly-container").style.display = "block";
 });
 
